@@ -182,6 +182,7 @@ export async function generateRootClaudeMd(
 
   const prompt = `Write the "Overview" section body for the root CLAUDE.md of repo \`${repo.name}\` (${repo.description}).
 Two or three short paragraphs: what the system does, main tech stack, and how the code is organised. No heading, no lists of commands.
+Only make claims directly supported by the README, file list or module summaries below. Do NOT assert how components are wired together (for example that a route uses a guard or filter) unless a module summary states it; if unsure, describe the module's role without the wiring.
 
 # README excerpt
 ${readme || "(no README)"}

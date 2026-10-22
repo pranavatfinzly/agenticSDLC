@@ -94,9 +94,18 @@ function pySpecifiers(root: Node, from: string, files: Set<string>): string[] {
 }
 
 /** Map "com.acme.Foo" -> file and "com.acme" -> files, from each Java file's package declaration. */
-async function buildJavaIndex(files: WalkedFile[]): Promise<{ byFqn: Map<string, string>; byPackage: Map<string, string[]> }> {
+interface JavaIndex {
+  byFqn: Map<string, string>;
+  byPackage: Map<string, string[]>;
+  classesByPackage: Map<string, Map<string, string>>; // package -> simple class name -> file
+  packageOf: Map<string, string>; // file -> package
+}
+
+async function buildJavaIndex(files: WalkedFile[]): Promise<JavaIndex> {
   const byFqn = new Map<string, string>();
   const byPackage = new Map<string, string[]>();
+  const classesByPackage = new Map<string, Map<string, string>>();
+  const packageOf = new Map<string, string>();
   for (const f of files) {
     if (!f.rel.endsWith(".java") || f.size > 500_000) continue;
     const head = (await fs.readFile(f.abs, "utf8")).slice(0, 4000);
@@ -104,12 +113,24 @@ async function buildJavaIndex(files: WalkedFile[]): Promise<{ byFqn: Map<string,
     const cls = path.posix.basename(f.rel, ".java");
     byFqn.set(pkg ? `${pkg}.${cls}` : cls, f.rel);
     byPackage.set(pkg, [...(byPackage.get(pkg) ?? []), f.rel]);
+    packageOf.set(f.rel, pkg);
+    if (!classesByPackage.has(pkg)) classesByPackage.set(pkg, new Map());
+    classesByPackage.get(pkg)!.set(cls, f.rel);
   }
-  return { byFqn, byPackage };
+  return { byFqn, byPackage, classesByPackage, packageOf };
 }
 
-function javaImports(root: Node, idx: { byFqn: Map<string, string>; byPackage: Map<string, string[]> }): string[] {
+function javaImports(root: Node, idx: JavaIndex, from: string): string[] {
   const out: string[] = [];
+  // Same-package references need no import: match capitalised type/identifier uses against sibling classes.
+  const siblings = idx.classesByPackage.get(idx.packageOf.get(from) ?? "");
+  if (siblings && siblings.size > 1) {
+    const used = new Set<string>();
+    for (const n of root.descendantsOfType(["type_identifier", "identifier"])) {
+      if (/^[A-Z]/.test(n.text) && siblings.has(n.text)) used.add(n.text);
+    }
+    for (const name of used) out.push(siblings.get(name)!);
+  }
   for (const n of root.descendantsOfType("import_declaration")) {
     const m = /import\s+(?:static\s+)?([\w.]+?)(\.\*)?\s*;/.exec(n.text);
     if (!m) continue;
@@ -147,7 +168,7 @@ export async function extractDependencies(repoPath: string, repoName: string, wa
     try {
       targets = await withTree(code, lang, (root) => {
         if (lang === "python") return pySpecifiers(root, f.rel, fileSet);
-        if (lang === "java") return javaImports(root, javaIdx);
+        if (lang === "java") return javaImports(root, javaIdx, f.rel);
         return tsSpecifiers(root).map((s) => resolveTs(f.rel, s, fileSet)).filter((x): x is string => !!x);
       });
     } catch {

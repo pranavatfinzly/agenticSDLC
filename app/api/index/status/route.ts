@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getPool } from "../../../../lib/db";
+import { failStaleRuns } from "../../../../lib/indexRuns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const runId = new URL(req.url).searchParams.get("runId");
+  await failStaleRuns();
   const pool = getPool();
   const { rows } = runId
     ? await pool.query("SELECT * FROM indexing_runs WHERE id = $1", [runId])

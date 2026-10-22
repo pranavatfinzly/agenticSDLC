@@ -57,4 +57,17 @@ describe("java support", () => {
     const dirs = (await detectModules(JAVA)).map((m) => m.dir);
     expect(dirs).toEqual(expect.arrayContaining(["src/main/java/com/acme/auth", "src/main/java/com/acme/billing"]));
   });
+
+  it("links same-package references that need no import", async () => {
+    const edges = await extractDependencies(JAVA, "java");
+    const base = "src/main/java/com/acme/billing";
+    expect(edges.some((e) => e.filePath === `${base}/InvoiceController.java` && e.importsFilePath === `${base}/InvoiceService.java`)).toBe(true);
+  });
+
+  it("chunks config and non-parsed files as whole-file chunks", async () => {
+    const chunks = await chunkRepo(JAVA, "java");
+    const yml = chunks.find((c) => c.filePath.endsWith("application.yml"));
+    expect(yml?.chunkType).toBe("other");
+    expect(yml?.code).toContain("billing-db");
+  });
 });

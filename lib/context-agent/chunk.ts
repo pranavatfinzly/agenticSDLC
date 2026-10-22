@@ -155,13 +155,44 @@ function extractPython(root: Node): Raw[] {
  * tree-sitter and return function / class / route-level chunks.
  * Files that parse to no symbols become a single "other" chunk.
  */
+// Not parsed with tree-sitter, but useful retrieval context (Kotlin/Go sources, SQL migrations, Spring/Gradle config...).
+const TEXT_EXTS = new Set([".kt", ".kts", ".go", ".sql", ".yml", ".yaml", ".properties", ".gradle", ".graphql", ".proto", ".xml", ".sh"]);
+const TEXT_MAX_BYTES = 120_000;
+const TEXT_WINDOW_LINES = 120;
+const TEXT_MAX_WINDOWS = 8;
+
+function textWindows(repoName: string, rel: string, source: string): ChunkRecord[] {
+  const lines = source.split("\n");
+  const out: ChunkRecord[] = [];
+  for (let i = 0; i < lines.length && out.length < TEXT_MAX_WINDOWS; i += TEXT_WINDOW_LINES) {
+    const slice = lines.slice(i, i + TEXT_WINDOW_LINES);
+    if (!slice.join("").trim()) continue;
+    out.push({
+      repoName,
+      filePath: rel,
+      symbolName: lines.length > TEXT_WINDOW_LINES ? `${path.basename(rel)}#${out.length + 1}` : path.basename(rel),
+      chunkType: "other",
+      code: slice.join("\n").slice(0, MAX_CODE_CHARS),
+      startLine: i + 1,
+      endLine: i + slice.length,
+    });
+  }
+  return out;
+}
+
 export async function chunkRepo(repoPath: string, repoName: string, files?: WalkedFile[]): Promise<ChunkRecord[]> {
   const all = files ?? (await walkRepo(repoPath));
   const chunks: ChunkRecord[] = [];
 
   for (const f of all) {
     const lang = langForFile(f.rel);
-    if (!lang || f.size > MAX_FILE_BYTES || f.size === 0) continue;
+    if (!lang) {
+      if (TEXT_EXTS.has(path.extname(f.rel).toLowerCase()) && f.size > 0 && f.size <= TEXT_MAX_BYTES && !/lock/i.test(f.rel)) {
+        chunks.push(...textWindows(repoName, f.rel, await fs.readFile(f.abs, "utf8")));
+      }
+      continue;
+    }
+    if (f.size > MAX_FILE_BYTES || f.size === 0) continue;
     const source = await fs.readFile(f.abs, "utf8");
 
     let raws: Materialised[] = [];

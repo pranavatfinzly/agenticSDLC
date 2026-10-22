@@ -1,24 +1,25 @@
 import { NextResponse } from "next/server";
 import { getPool } from "../../../lib/db";
 import { indexAllRepos } from "../../../lib/context-agent/pipeline";
+import { failStaleRuns, getActiveRunId, setActiveRunId } from "../../../lib/indexRuns";
 import type { ProgressCounts, ProgressStage } from "../../../lib/context-agent/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const g = globalThis as unknown as { __indexRunId?: number | null };
-
 type RepoProgress = { stage: ProgressStage; stages: Partial<Record<ProgressStage, ProgressCounts>>; error?: string };
 
 export async function POST() {
-  if (g.__indexRunId) {
-    return NextResponse.json({ runId: g.__indexRunId, alreadyRunning: true }, { status: 202 });
+  const active = getActiveRunId();
+  if (active) {
+    return NextResponse.json({ runId: active, alreadyRunning: true }, { status: 202 });
   }
+  await failStaleRuns();
 
   const pool = getPool();
   const { rows } = await pool.query("INSERT INTO indexing_runs (status, per_repo_progress) VALUES ('running', '{}') RETURNING id");
   const runId = Number(rows[0].id);
-  g.__indexRunId = runId;
+  setActiveRunId(runId);
 
   const progress: Record<string, RepoProgress> = {};
   let chain: Promise<void> = Promise.resolve();
@@ -52,7 +53,7 @@ export async function POST() {
     } finally {
       await chain;
       await pool.query("UPDATE indexing_runs SET status = $2, finished_at = now() WHERE id = $1", [runId, status]);
-      g.__indexRunId = null;
+      setActiveRunId(null);
     }
   })();
 
