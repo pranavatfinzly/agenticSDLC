@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "cross-env NODE_OPTIONS=--use-system-ca next start",
     "typecheck": "tsc --noEmit",
-    "test": "cross-env NODE_OPTIONS=--use-system-ca vitest run --pool=threads"
+    "test": "cross-env NODE_OPTIONS=--use-system-ca vitest run --pool=threads",
+    "describe": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/describe.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.134.0",
@@ -32,6 +33,7 @@
     "dotenv": "^18.0.8",
     "postcss": "^8.5.30",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.0.4"
   }

@@ -10,6 +10,7 @@ import { loadRepoConfig, defaultOutputDir } from "./config";
 import { isSourceFile } from "./parse";
 import { walkRepo, type WalkedFile } from "./walk";
 import { pMap } from "./llm";
+import { resolveDescriptions } from "./describe";
 import { log, logHeader } from "./log";
 import type { ChunkRecord, CrossRepoLink, DependencyEdge, ModuleDoc, ProgressCallback, ProgressCounts, ProgressStage, RepoConfig } from "./types";
 
@@ -44,7 +45,7 @@ function fmt(counts: ProgressCounts): string {
  * `onProgress(repoName, stage, counts)` fires after every stage (counts.complete === 1 when the stage finished).
  */
 export async function indexAllRepos(onProgress: ProgressCallback, opts: IndexOptions = {}): Promise<IndexResult> {
-  const repos = opts.repos ?? loadRepoConfig();
+  const configured = opts.repos ?? loadRepoConfig();
   const outputDir = opts.outputDir ?? defaultOutputDir();
   const failed = new Set<string>();
 
@@ -54,7 +55,7 @@ export async function indexAllRepos(onProgress: ProgressCallback, opts: IndexOpt
   };
 
   // Fail fast (and readably) on bad config such as the placeholder repos.
-  for (const r of repos) {
+  for (const r of configured) {
     try {
       if (!(await fs.stat(r.path)).isDirectory()) throw new Error("not a directory");
     } catch (err) {
@@ -63,6 +64,9 @@ export async function indexAllRepos(onProgress: ProgressCallback, opts: IndexOpt
       throw new Error(msg);
     }
   }
+
+  // Repos without a (real) description get one derived from their README/manifests/layout.
+  const repos = await resolveDescriptions(configured, (name, d) => log(name, "describe", `derived description: ${d}`));
 
   logHeader(`Indexing ${repos.length} repo(s): ${repos.map((r) => r.name).join(", ")}`);
   const states: RepoState[] = [];
