@@ -167,7 +167,17 @@ async function discoverCommands(repoPath: string): Promise<string> {
     const targets = [...make.matchAll(/^([A-Za-z0-9_.-]+)\s*:(?!=)/gm)].map((m) => m[1]).filter((t) => !t.startsWith("."));
     for (const t of [...new Set(targets)].slice(0, 15)) lines.push(`- \`make ${t}\``);
   }
-  return lines.length ? lines.join("\n") : "No build/test/lint commands discovered (no package.json scripts or Makefile).";
+  const exists = async (f: string) => !!(await readIfExists(path.join(repoPath, f), 1));
+  if (await exists("pom.xml")) {
+    const mvn = (await exists("mvnw")) ? "./mvnw" : "mvn";
+    lines.push(`- \`${mvn} clean install\` — build all modules and run tests`, `- \`${mvn} test\` — run unit tests`, `- \`${mvn} clean install -DskipTests\` — build without tests`);
+  }
+  if ((await exists("build.gradle")) || (await exists("build.gradle.kts"))) {
+    const gw = (await exists("gradlew")) ? "./gradlew" : "gradle";
+    lines.push(`- \`${gw} build\` — build and test`, `- \`${gw} test\` — run tests`);
+  }
+  if (await exists("Jenkinsfile")) lines.push("- CI: `Jenkinsfile` at the repo root defines the pipeline");
+  return lines.length ? lines.join("\n") : "No build/test/lint commands discovered (no package.json, Makefile, Maven or Gradle build).";
 }
 
 /** Root CLAUDE.md: Claude-written overview + deterministic commands and module index table. */
