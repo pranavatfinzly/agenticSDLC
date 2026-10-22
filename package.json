@@ -8,7 +8,8 @@
     "start": "cross-env NODE_OPTIONS=--use-system-ca next start",
     "typecheck": "tsc --noEmit",
     "test": "cross-env NODE_OPTIONS=--use-system-ca vitest run --pool=threads",
-    "describe": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/describe.ts"
+    "describe": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/describe.ts",
+    "index": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.134.0",
