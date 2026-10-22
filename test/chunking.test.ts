@@ -52,4 +52,9 @@ describe("java support", () => {
     expect(has("billing/InvoiceService.java", "auth/AuthService.java")).toBe(true);
     expect(has("billing/InvoiceController.java", "auth/AuthService.java")).toBe(true);
   });
+
+  it("falls back to source directories when no module rule matches", async () => {
+    const dirs = (await detectModules(JAVA)).map((m) => m.dir);
+    expect(dirs).toEqual(expect.arrayContaining(["src/main/java/com/acme/auth", "src/main/java/com/acme/billing"]));
+  });
 });

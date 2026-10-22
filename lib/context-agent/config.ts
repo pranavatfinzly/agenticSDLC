@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { RepoConfig } from "./types";
 
-export function loadRepoConfig(file = path.join(process.cwd(), "repos.config.json")): RepoConfig[] {
+export function loadRepoConfig(file = process.env.REPOS_CONFIG || path.join(process.cwd(), "repos.config.json")): RepoConfig[] {
   const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
   if (!Array.isArray(parsed)) throw new Error(`${file} must contain a JSON array`);
   for (const r of parsed) {

@@ -68,7 +68,11 @@ export async function detectModules(repoPath: string, walked?: WalkedFile[]): Pr
     return !(hasChildCandidate && !ownFiles);
   });
 
-  return pruned
+  // Small or flat repos (e.g. a handful of Java packages) may match no rule at all: fall back to any
+  // directory that directly holds source files so every repo still gets module docs.
+  const chosen = pruned.length ? pruned : [...dirs].filter((d) => (directSource.get(d) ?? 0) > 0);
+
+  return chosen
     .sort((a, b) => (subtreeSource.get(b) ?? 0) - (subtreeSource.get(a) ?? 0) || a.localeCompare(b))
     .slice(0, MAX_MODULES)
     .sort()
